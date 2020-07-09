@@ -1,0 +1,5 @@
+.snakemake/*
+blast/*
+coverage/*
+genomes_with_regions/*
+
