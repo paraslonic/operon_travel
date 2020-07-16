@@ -68,7 +68,6 @@ rule find_region_in_selected_genome:
         """
             Rscript helpers/regionFromBlast.r {input.blast} {output.bed}
             bedtools getfasta -fi {input.genome} -fo {output.fasta} -bed {output.bed}
-            #touch {output.bed}
         """
 
 def aggregate_by_selected_genomes(wildcards):
@@ -78,13 +77,22 @@ def aggregate_by_selected_genomes(wildcards):
            genome=glob_wildcards(os.path.join( selected_genomes_folder, "{genome}.fna")).genome)
     return result
 
-rule get_list:
+rule mauve_of_region:
     input: subject_regions=aggregate_by_selected_genomes,
             query_region="regions/{region}.fasta"
     output: backbone="tmp/{region}/mauve.backbone",
             xmfa="tmp/{region}/mauve.xmfa"
     shell:
         """ 
-        #echo {input} > {output}
         progressiveMauve {input.query_region} {input.subject_regions} --output {output.xmfa} --backbone-output {output.backbone}
         """
+
+def aggregate_by_selected_genomes(wildcards):
+    selected_genomes_folder = checkpoints.select_genomes_with_regions.get(**wildcards).output[0]
+    result = expand("tmp/subject_regions/{region}/{genome}.fasta",
+           region=wildcards.region,
+           genome=glob_wildcards(os.path.join( selected_genomes_folder, "{genome}.fna")).genome)
+    return result
+
+
+rule core_of_genomes:
