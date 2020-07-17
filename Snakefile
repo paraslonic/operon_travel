@@ -11,7 +11,7 @@ genomes,=glob_wildcards("fna/{genome}.fna")
 #results.append(expand("blast/{genome}.blast", genome=genomes))
 
 #results.append("genomes_with_regions/pdu")
-results.append("tmp/pdu/mauve.backbone")
+results.append("tmp/result/pdu/out")
 
 print("Genomes: ", len(genomes))
 
@@ -58,41 +58,138 @@ checkpoint select_genomes_with_regions:
                 if(int(coverage) > params.min_coverage): 
                     os.symlink("../../fna/"+genome+".fna", "genomes_with_regions/"+region+"/"+genome+".fna")
 
-rule find_region_in_selected_genome:
-    input:  blast="blast/{region}/{genome}.blast",
-            genome="genomes_with_regions/{region}/{genome}.fna"
-    output: bed="tmp/subject_regions/{region}/{genome}.bed",
-            fasta="tmp/subject_regions/{region}/{genome}.fasta",
+rule nucmer_region_to_genomes:
+    input: genome="genomes_with_regions/{region}/{genome}.fna",
+            region="regions/{region}.fasta"
+    output: "tmp/nucmer/{region}/{genome}.coord"
+    params: prefix="tmp/nucmer/{region}/{genome}"
     conda: "envs/env.yaml"
-    shell: 
+    threads: 1
+    shell:
         """
-            Rscript helpers/regionFromBlast.r {input.blast} {output.bed}
-            bedtools getfasta -fi {input.genome} -fo {output.fasta} -bed {output.bed}
+            nucmer {input.genome} {input.region} -p {params.prefix} --mum -L 1000 -t {threads}
+            show-coords -HlcT {params.prefix}.delta > {output}
         """
 
 def aggregate_by_selected_genomes(wildcards):
     selected_genomes_folder = checkpoints.select_genomes_with_regions.get(**wildcards).output[0]
-    result = expand("tmp/subject_regions/{region}/{genome}.fasta",
+    result = expand("tmp/nucmer/{region}/{genome}.coord",
            region=wildcards.region,
            genome=glob_wildcards(os.path.join( selected_genomes_folder, "{genome}.fna")).genome)
     return result
 
-rule mauve_of_region:
-    input: subject_regions=aggregate_by_selected_genomes,
-            query_region="regions/{region}.fasta"
-    output: backbone="tmp/{region}/mauve.backbone",
-            xmfa="tmp/{region}/mauve.xmfa"
+rule mauve_of_region: 
+    input: aggregate_by_selected_genomes
+    output: "tmp/result/{region}/out"
     shell:
         """ 
-        progressiveMauve {input.query_region} {input.subject_regions} --output {output.xmfa} --backbone-output {output.backbone}
+        cat {input} > {output}
         """
 
-def aggregate_by_selected_genomes(wildcards):
+#============================================ ORTHO SNAKE --
+
+def get_selected_genomes(wildcards):
     selected_genomes_folder = checkpoints.select_genomes_with_regions.get(**wildcards).output[0]
-    result = expand("tmp/subject_regions/{region}/{genome}.fasta",
-           region=wildcards.region,
-           genome=glob_wildcards(os.path.join( selected_genomes_folder, "{genome}.fna")).genome)
-    return result
+    genomes = glob_wildcards(os.path.join(selected_genomes_folder, "{genome}.fna")).genome
+    return genomes
 
 
-rule core_of_genomes:
+rule check_fna:
+	input: "genomes_with_regions/{region}/{genome}.fna"
+	output: "orthosnake/{region}/fna_final/{genome}.fna"
+	conda: "envs/scripts.yaml"
+	shell:	"python scripts/cropHeader.py -input  {input} -out {output} -n 20"
+		
+rule prokka:
+	input: "orthosnake/{region}/fna_final/{genome}.fna"
+	output: dir=directory("orthosnake/{region}/prokka/{genome}"),
+            gbk="orthosnake/{region}/prokka/{genome}/{genome}.gbk"
+	threads: 4
+	conda: "envs/prokka.yaml"
+	shell:
+		"""
+		prokka --cpus {threads} --outdir {output.dir} --force --prefix {wildcards.genome} --locustag {wildcards.genome} {input} 2>/dev/null
+		"""
+
+rule make_faa:
+	input:	"orthosnake/{region}/prokka/{genome}/{genome}.gbk"
+	output: "orthosnake/{region}/faa/{genome}.fasta"
+	conda: "envs/scripts.yaml"
+	shell:
+		"name=$(basename {input});"
+		"python scripts/GBfaa.py -gb  {input} > {output}"
+
+rule make_ffn:
+	input:	"orthosnake/{region}/prokka/{genome}/{genome}.gbk"
+	output: "orthosnake/{region}/ffn/{genome}.fasta"
+	conda: "envs/scripts.yaml"
+	shell:
+		"name=$(basename {input});"
+		"python scripts/GBffn.py -gb  {input} > {output}"
+
+rule orthofinder:
+	input: 
+		expand("faa/{genome}.fasta", genome = get_selected_genomes(wildcards))
+	output:"orthosnake/{region}/Results/Orthogroups.txt"
+	threads: 50
+    params: dir="orthosnake/{region}/faa"
+	conda: "envs/ortho.yaml"
+	log: "log_of.txt"
+	shell:
+		"bash scripts/run_orthofinder.sh {params.dir} {threads} > {log}" #### MODIFY SET INPUT FOLDER
+
+checkpoint makeCoreOGfastas: 
+	input:
+		og="orthosnake/{region}/Results/Orthogroups.txt",
+		ffns=expand("orthosnake/{region}/ffn/{qu}.fasta", qu=GENOMES)
+	output:
+		coreog=directory("orthosnake/{region}/Results/ortho/coreogs_prot")
+	shell:
+		"""
+		mkdir -p tmp #### MODIFY !!!
+		cat ffn/*.fasta > tmp/all_genes_nuc.fasta
+		cat faa/*.fasta > tmp/all_genes_prot.fasta
+        mkdir -p Results/ortho/
+		mkdir -p Results/ortho/coreogs_nuc Results/ortho/coreogs_prot
+		perl scripts/splitToOg.pl Results/Orthogroups.txt tmp/all_genes_nuc.fasta Results/ortho/coreogs_nuc Results/Orthogroups_SingleCopyOrthologues.txt
+		perl scripts/splitToOg.pl Results/Orthogroups.txt tmp/all_genes_prot.fasta Results/ortho/coreogs_prot Results/Orthogroups_SingleCopyOrthologues.txt
+		"""		
+
+rule align_core_prot:
+	input:
+		"orthosnake/{region}/Results/ortho/coreogs_prot/{og}.fasta"
+	output:
+		"orthosnake/{region}/Results/ortho/coreogs_aligned_prot/{og}.fasta"
+	shell:
+		"helpers/./muscle -in {input} -out {output} -quiet"
+
+rule pal2nal:
+	input:
+		prot="orthosnake/{region}/Results/ortho/coreogs_aligned_prot/{og}.fasta",
+		nuc="orthosnake/{region}/Results/ortho/coreogs_nuc/{og}.fasta"
+	output:
+		"orthosnake/{region}/Results/ortho/coreogs_aligned_nuc/{og}.fasta"
+	shell:
+		"perl helpers/pal2nal.pl {input.prot} {input.nuc} -output fasta > {output}"
+
+def aggregate_input(wildcards):
+    checkpoint_output = checkpoints.makeCoreOGfastas.get(**wildcards).output[0]
+    ogs = expand("orthosnake/{region}/Results/ortho/coreogs_aligned_nuc/{og}.fasta",
+           og=glob_wildcards(os.path.join(checkpoint_output, "{og}.fasta")).og)
+    return ogs
+
+rule cat_core:
+    input: aggregate_input
+    output: "orthosnake/{region}/tmp/coreogaligned.fasta" 
+    conda: "envs/scripts_tree.yaml"
+    shell:
+        "echo {input};"
+        "perl scripts/concatenate_core.pl Results/ortho/coreogs_aligned_nuc {output}" ### MODIFY
+
+rule tree_for_core:
+	input: rules.cat_core.output
+	threads: 20
+	output:
+		"orthosnake/{region}/Results/coreogs_nucleotide.treefile"
+	shell:
+		"iqtree -s {input} -nt {threads} -pre Results/coreogs_nucleotide -redo -m MFP"
