@@ -138,25 +138,41 @@ rule orthofinder:
     conda: "envs/ortho.yaml"
     shell:"bash scripts/run_orthofinder.sh {params.folder} {threads}"
 
-checkpoint makeCoreOGfastas: 
+checkpoint makeCoreOGfastasffn: 
     input:
         og="orthosnake/{region}/Results/Orthogroups.txt",
         ffns=lambda wildcards:
             ["orthosnake/{0}/ffn/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
-    output:
-        coreog=directory("orthosnake/{region}/Results/ortho/coreogs_prot")
+    output: directory("orthosnake/{region}/Results/ortho/coreogs_nuc")
     params: folder="orthosnake/{region}"
-    shell:
+    shell: 
         """
-        mkdir -p {params.folder}/tmp 
-        cat {params.folder}/ffn/*.fasta > {params.folder}/tmp/all_genes_nuc.fasta
-        cat {params.folder}/faa/*.fasta > {params.folder}/tmp/all_genes_prot.fasta
-        mkdir -p {params.folder}/Results/ortho/
-        mkdir -p {params.folder}/Results/ortho/coreogs_nuc
-        mkdir -p {params.folder}/Results/ortho/coreogs_prot
-        perl scripts/splitToOg.pl {params.folder}/Results/Orthogroups.txt {params.folder}/tmp/all_genes_nuc.fasta {params.folder}/Results/ortho/coreogs_nuc {params.folder}/Results/Orthogroups_SingleCopyOrthologues.txt
-        perl scripts/splitToOg.pl {params.folder}/Results/Orthogroups.txt {params.folder}/tmp/all_genes_prot.fasta {params.folder}/Results/ortho/coreogs_prot {params.folder}/Results/Orthogroups_SingleCopyOrthologues.txt
-        """        
+            set -eo pipefail
+            folder="{params.folder}"
+            mkdir -p $folder/tmp 
+            cat $folder/ffn/*.fasta > $folder/tmp/all_genes_nuc.fasta
+            mkdir -p $folder/Results/ortho/
+            mkdir -p $folder/Results/ortho/coreogs_nuc
+            perl scripts/splitToOg.pl $folder/Results/Orthogroups.txt $folder/tmp/all_genes_nuc.fasta $folder/Results/ortho/coreogs_nuc $folder/Results/Orthogroups_SingleCopyOrthologues.txt >> $folder/plog
+        """ 
+
+checkpoint makeCoreOGfastasfaa: 
+    input:
+        og="orthosnake/{region}/Results/Orthogroups.txt",
+        faas=lambda wildcards:
+            ["orthosnake/{0}/faa/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
+    output: directory("orthosnake/{region}/Results/ortho/coreogs_prot")
+    params: folder="orthosnake/{region}"
+    shell: 
+        """
+            set -eo pipefail
+            folder={params.folder}
+            mkdir -p $folder/tmp 
+            cat $folder/faa/*.fasta > $folder/tmp/all_genes_prot.fasta
+            mkdir -p $folder/Results/ortho/
+            mkdir -p $folder/Results/ortho/coreogs_prot
+            perl scripts/splitToOg.pl $folder/Results/Orthogroups.txt $folder/tmp/all_genes_prot.fasta $folder/Results/ortho/coreogs_prot $folder/Results/Orthogroups_SingleCopyOrthologues.txt >> $folder/plog
+        """ 
 
 rule align_core_prot:
     input:
@@ -174,25 +190,24 @@ rule pal2nal:
     shell:
         "perl helpers/pal2nal.pl {input.prot} {input.nuc} -output fasta > {output}"
 
-def aggregate_input(wildcards):
-    checkpoint_output = checkpoints.makeCoreOGfastas.get(**wildcards).output[0]
-    ogs = expand("orthosnake/{region}/Results/ortho/coreogs_aligned_nuc/{og}.fasta",
+def aggregate_core_og(wildcards):
+    checkpoint_output = checkpoints.makeCoreOGfastasffn.get(**wildcards).output[0]
+    ogs = expand("orthosnake/{region}/Results/ortho/coreogs_aligned_nuc/{og}.fasta",region=wildcards.region,
            og=glob_wildcards(os.path.join(checkpoint_output, "{og}.fasta")).og)
     return ogs
 
 rule cat_core:
-    input: aggregate_input
+    input: aggregate_core_og
     output: "orthosnake/{region}/tmp/coreogaligned.fasta" 
     conda: "envs/scripts_tree.yaml"
     params: folder="orthosnake/{region}"
     shell:
-        "echo {input};"
         "perl scripts/concatenate_core.pl {params.folder}/Results/ortho/coreogs_aligned_nuc {output}" 
 
 rule tree_for_core:
-    input: rules.cat_core.output
+    input: "orthosnake/{region}/tmp/coreogaligned.fasta" 
     threads: 20
     params: folder="orthosnake/{region}"
     output: "orthosnake/{region}/Results/coreogs_nucleotide.treefile"
     shell:
-        "iqtree -s {input} -nt {threads} -pre {params.folder}/Results/coreogs_nucleotide -redo -m MFP"
+        "iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix {params.folder}/Results/coreogs_nucleotide -redo -m MFP"

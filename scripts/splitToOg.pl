@@ -43,9 +43,8 @@ while (<S>){
 		$id = $abc[1];
 		next if(!exists($hash{$strain}{$id}));
 		open (W,">>","$Out/$hash{$strain}{$id}.fasta");
-                print W ">$strain|$id\n";
-                close(W);
-
+        print W ">$strain|$id\n";
+        close(W);
 	}
 	else
 	{
