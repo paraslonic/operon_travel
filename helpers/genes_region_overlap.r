@@ -1,10 +1,8 @@
-#setwd("/data/ps/operon_travel/")
-
 library("data.table")
 library("IRanges")
 
-operon="pdu"
-
+args = commandArgs(trailingOnly=TRUE)
+operon = args[1]
 
 ## load data
 faa_path <- paste0("orthosnake/",operon,"/faa/")
@@ -16,10 +14,9 @@ ref_genome_name <- gsub(".fasta", "", ref_genome)
 regions <- read.delim(paste0("blast/",operon,"/", ref_genome_name,".blast"), head = F)
 colnames(regions) <- c("qseqid", 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
 
-
+## Find genes
 overlapped_genes_index_total <- c()
 
-## Find genes
 for(i in 1:nrow(regions)){
   region <- regions[i,]
   genes_table_subset <- subset(genes_table, genes_table$contig == region$sseqid)  
@@ -33,6 +30,13 @@ for(i in 1:nrow(regions)){
 genes_in_region <- apply(genes_table[overlapped_genes_index_total,], 1,  paste,collapse="|")
 genes_in_region <- gsub("^>","",genes_in_region)
 
+## Find OGs
+og_table <- fread(paste0("orthosnake/",operon,"/Results/Orthogroups.tsv"))
 
+ref_col <- which(colnames(og_table) == ref_genome_name)
 
+og_in_region_index <- which(unlist(og_table[, ref_col, with=F]) %in% genes_in_region)
+
+og_in_region <- og_table[og_in_region_index, 1, with=F]
+write.table(og_in_region, paste0("tmp/og_in_region/",operon,"/og_list"), row.names = F, col.names = F, quote = F)
 
