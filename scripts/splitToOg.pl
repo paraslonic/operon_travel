@@ -1,5 +1,4 @@
 use v5.10.0;
-use warnings;
 use Data::Dumper;
 
 my $OrthologousGroups = $ARGV[0];
@@ -55,3 +54,4 @@ while (<S>){
 	}
 }
 
+close(S)

@@ -134,28 +134,31 @@ rule make_ffn:
 rule orthofinder:
     input: lambda wildcards:
         ["orthosnake/{0}/faa/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
-    output: "orthosnake/{region}/Results/Orthogroups.txt"
+    output: "orthosnake/{region}/Results/Orthogroups.txt", "orthosnake/{region}/Results/Orthogroups_SingleCopyOrthologues.txt"
     threads: 50
     params: folder="orthosnake/{region}"
     conda: "envs/ortho.yaml"
     shell:"bash scripts/run_orthofinder.sh {params.folder} {threads}"
 
+rule cat_genes:
+    input: ffns=lambda wildcards:
+            ["orthosnake/{0}/ffn/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
+    output: "orthosnake/{region}/tmp/all_genes_nuc.fasta"
+    shell:
+        """
+        mkdir -p orthosnake/{wildcards.region}/tmp 
+        cat orthosnake/{wildcards.region}/ffn/*.fasta > {output}
+        """
+
 checkpoint makeCoreOGfastasffn: 
     input:
         og="orthosnake/{region}/Results/Orthogroups.txt",
-        ffns=lambda wildcards:
-            ["orthosnake/{0}/ffn/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
-    output: directory("orthosnake/{region}/Results/ortho/coreogs_nuc"), "orthosnake/{region}/tmp/all_genes_nuc.fasta"
-    params: folder="orthosnake/{region}"
+        all_genes="orthosnake/{region}/tmp/all_genes_nuc.fasta",
+        core_og="orthosnake/{region}/Results/Orthogroups_SingleCopyOrthologues.txt"
+    output: directory("orthosnake/{region}/Results/coreogs_nuc")
     shell: 
         """
-            set -eo pipefail
-            folder="{params.folder}"
-            mkdir -p $folder/tmp 
-            cat $folder/ffn/*.fasta > $folder/tmp/all_genes_nuc.fasta
-            mkdir -p $folder/Results/ortho/
-            mkdir -p $folder/Results/ortho/coreogs_nuc
-            perl scripts/splitToOg.pl $folder/Results/Orthogroups.txt $folder/tmp/all_genes_nuc.fasta $folder/Results/ortho/coreogs_nuc $folder/Results/Orthogroups_SingleCopyOrthologues.txt >> $folder/plog
+            python scripts/splitToOg.py {input.og} {input.all_genes} {input.core_og} {output}
         """ 
 
 checkpoint makeCoreOGfastasfaa: 
