@@ -10,6 +10,7 @@ genomes,=glob_wildcards("fna/{genome}.fna")
 
 regions,=glob_wildcards("regions/{region}.fasta")
 results.append(expand("tree_region/{region}/{region}.treefile", region =  regions))
+results.append(expand("tree_core/{region}/{region}_core.treefile", region =  regions))
 
 print("Genomes: ", len(genomes))
 
@@ -175,11 +176,13 @@ rule cat_core:
 rule tree_for_core:
     input: "orthosnake/{region}/tmp/coreogaligned.fasta" 
     threads: 20
-    params: folder="orthosnake/{region}"
     ## add iqtree to conda
-    output: "orthosnake/{region}/Results/coreogs_nucleotide.treefile"
+    output: "tree_core/{region}/{region}_core.treefile
     shell:
-        "iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix {params.folder}/Results/coreogs_nucleotide -redo -m MFP"
+        """
+        prefix=$(basename {output} .treefile)
+        iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix $prefix -redo -m MFP
+        """
 
 #============================================ REGION TREE --
 
