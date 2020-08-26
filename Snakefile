@@ -177,7 +177,7 @@ rule tree_for_core:
     input: "orthosnake/{region}/tmp/coreogaligned.fasta" 
     threads: 20
     ## add iqtree to conda
-    output: "tree_core/{region}/{region}_core.treefile
+    output: "tree_core/{region}/{region}_core.treefile"
     shell:
         """
         prefix=$(basename {output} .treefile)
