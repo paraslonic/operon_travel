@@ -61,34 +61,6 @@ checkpoint select_genomes_with_regions:
         for genome in genomes_with_regions_list:
             os.symlink("../../fna/"+genome+".fna", "genomes_with_regions/"+region+"/"+genome+".fna")
 
-rule nucmer_region_to_genomes:
-    input: genome="genomes_with_regions/{region}/{genome}.fna",
-            region="regions/{region}.fasta"
-    output: "tmp/nucmer/{region}/{genome}.coord"
-    params: prefix="tmp/nucmer/{region}/{genome}"
-    conda: "envs/env.yaml"
-    threads: 1
-    shell:
-        """
-            nucmer {input.genome} {input.region} -p {params.prefix} --mum -L 1000 -t {threads}
-            show-coords -HlcT {params.prefix}.delta > {output}
-        """
-
-def aggregate_by_selected_genomes(wildcards):
-    selected_genomes_folder = checkpoints.select_genomes_with_regions.get(**wildcards).output[0]
-    result = expand("tmp/nucmer/{region}/{genome}.coord",
-           region=wildcards.region,
-           genome=glob_wildcards(os.path.join( selected_genomes_folder, "{genome}.fna")).genome)
-    return result
-
-rule mauve_of_region: 
-    input: aggregate_by_selected_genomes
-    output: "tmp/result/{region}/out"
-    shell:
-        """ 
-        cat {input} > {output}
-        """
-
 #============================================ ORTHO SNAKE --
 
 def get_selected_genomes(wildcards):

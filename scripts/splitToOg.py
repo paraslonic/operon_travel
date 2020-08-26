@@ -14,7 +14,6 @@ except OSError:
 else:
     print ("Successfully created the directory %s" % outputFolder)
 
-
 ogList = []
 
 with open(ogListFile, "r") as oglistfile:
@@ -35,8 +34,11 @@ with open(orthologousGroupsFile, "r") as ogfile:
 og_records = {}
 
 for seq_record in SeqIO.parse(sequencesFile, "fasta"):
-    if seq_record.id in gene_og:
-        og = gene_og[seq_record.id]
+    seq_id = seq_record.id
+    seq_id=seq_id.replace("(","_")
+    seq_id=seq_id.replace(")","_")
+    if seq_id in gene_og:
+        og = gene_og[seq_id]
         if(og in og_records):
             og_records[og].append(seq_record)
         else:
