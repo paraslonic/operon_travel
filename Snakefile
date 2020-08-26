@@ -167,7 +167,7 @@ def aggregate_core_og(wildcards):
 rule cat_core:
     input: aggregate_core_og
     output: "orthosnake/{region}/tmp/coreogaligned.fasta" 
-    
+    conda: "envs/scripts_perl.yaml"
     params: folder="orthosnake/{region}"
     shell:
         "perl scripts/concatenate_core.pl {params.folder}/Results/coreogs_aligned_nuc {output}" 
@@ -195,11 +195,12 @@ rule og_in_region_sequence:
     input: oglist="tmp/og_in_region/{region}/og_list", ogaligned="orthosnake/{region}/tmp/coreogaligned.fasta"
     output: "tmp/og_in_region/{region}/{region}.fasta"
     params: folder="orthosnake/{region}"
+    conda: "envs/scripts_perl.yaml"
     shell: 
         """
             while read f
             do 
-                OG_FASTA="orthosnake/{wildcards.region}/Results/ortho/coreogs_aligned_nuc/$f.fasta"
+                OG_FASTA="orthosnake/{wildcards.region}/Results/coreogs_aligned_nuc/$f.fasta"
                 if [ -f $OG_FASTA ]; then  
                     cp $OG_FASTA tmp/og_in_region/{wildcards.region}/$f.fasta
                 fi    
