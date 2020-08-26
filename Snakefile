@@ -1,19 +1,15 @@
 import os
 import re
 import glob
+import random
 
 results = []
 
 genomes,=glob_wildcards("fna/{genome}.fna")
 #genomes = genomes[0:60]
 
-#results.append(expand("coverage/pdu/{genome}.cov", genome=genomes))
-#results.append(expand("blast/{genome}.blast", genome=genomes))
-
-#results.append("genomes_with_regions/pdu")
-results.append("tmp/result/pdu/out")
-results.append("orthosnake/pdu/Results/coreogs_nucleotide.treefile")
-results.append("tree_region/pdu/pdu.treefile")
+regions,=glob_wildcards("regions/{region}.fasta")
+results.append(expand("tree_region/{region}/{region}.treefile", region =  regions))
 
 print("Genomes: ", len(genomes))
 
@@ -47,10 +43,11 @@ checkpoint select_genomes_with_regions:
     input:  lambda wildcards: 
             ["coverage/{0}/{1}.cov".format(wildcards.region, genome) for genome in genomes]
     output: outdir=directory("genomes_with_regions/{region}")
-    params: min_coverage=90
+    params: min_coverage=90, max_genomes = 100
     run:
         region = wildcards.region
         os.mkdir(output.outdir)
+        genomes_with_regions_list = []
         for cov_file in input:
             if(os.path.getsize(cov_file) < 1): continue
             with open(cov_file, "r") as infile:
@@ -58,7 +55,11 @@ checkpoint select_genomes_with_regions:
                 print(line)
                 [genome, coverage] = re.split(r'\t+', line)
                 if(int(coverage) > params.min_coverage): 
-                    os.symlink("../../fna/"+genome+".fna", "genomes_with_regions/"+region+"/"+genome+".fna")
+                    genomes_with_regions_list.append(genome)
+        if(len(genomes_with_regions_list) > params.max_genomes):
+            genomes_with_regions_list = random.sample(genomes_with_regions_list, params.max_genomes)                        
+        for genome in genomes_with_regions_list:
+            os.symlink("../../fna/"+genome+".fna", "genomes_with_regions/"+region+"/"+genome+".fna")
 
 rule nucmer_region_to_genomes:
     input: genome="genomes_with_regions/{region}/{genome}.fna",
