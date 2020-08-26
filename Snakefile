@@ -141,73 +141,64 @@ rule orthofinder:
     shell:"bash scripts/run_orthofinder.sh {params.folder} {threads}"
 
 rule cat_genes:
-    input: ffns=lambda wildcards:
-            ["orthosnake/{0}/ffn/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
-    output: "orthosnake/{region}/tmp/all_genes_nuc.fasta"
+    input:
+        ffns=lambda wildcards:
+            ["orthosnake/{0}/ffn/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)],
+        faas=lambda wildcards:
+            ["orthosnake/{0}/faa/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
+    output: all_ffn="orthosnake/{region}/tmp/all_genes_nuc.fasta",
+            all_faa="orthosnake/{region}/tmp/all_genes_prot.fasta"
     shell:
         """
         mkdir -p orthosnake/{wildcards.region}/tmp 
-        cat orthosnake/{wildcards.region}/ffn/*.fasta > {output}
+        cat {input.ffns} > {output.all_ffn}
+        cat {input.faas} > {output.all_faa}
         """
 
 checkpoint makeCoreOGfastasffn: 
     input:
         og="orthosnake/{region}/Results/Orthogroups.txt",
-        all_genes="orthosnake/{region}/tmp/all_genes_nuc.fasta",
+        all_ffn="orthosnake/{region}/tmp/all_genes_nuc.fasta",
+        all_faa="orthosnake/{region}/tmp/all_genes_prot.fasta",
         core_og="orthosnake/{region}/Results/Orthogroups_SingleCopyOrthologues.txt"
-    output: directory("orthosnake/{region}/Results/coreogs_nuc")
+    output: coreog_nuc=directory("orthosnake/{region}/Results/coreogs_nuc"),
+            coreog_prot=directory("orthosnake/{region}/Results/coreogs_prot")  
+    conda: "envs/scripts.yaml"
     shell: 
         """
-            python scripts/splitToOg.py {input.og} {input.all_genes} {input.core_og} {output}
-        """ 
-
-checkpoint makeCoreOGfastasfaa: 
-    input:
-        og="orthosnake/{region}/Results/Orthogroups.txt",
-        faas=lambda wildcards:
-            ["orthosnake/{0}/faa/{1}.fasta".format(wildcards.region, genome) for genome in get_selected_genomes(wildcards)]
-    output: directory("orthosnake/{region}/Results/ortho/coreogs_prot")
-    params: folder="orthosnake/{region}"
-    shell: 
-        """
-            set -eo pipefail
-            folder={params.folder}
-            mkdir -p $folder/tmp 
-            cat $folder/faa/*.fasta > $folder/tmp/all_genes_prot.fasta
-            mkdir -p $folder/Results/ortho/
-            mkdir -p $folder/Results/ortho/coreogs_prot
-            perl scripts/splitToOg.pl $folder/Results/Orthogroups.txt $folder/tmp/all_genes_prot.fasta $folder/Results/ortho/coreogs_prot $folder/Results/Orthogroups_SingleCopyOrthologues.txt >> $folder/plog
+            python scripts/splitToOg.py {input.og} {input.all_ffn} {input.core_og} {output.coreog_nuc}
+            python scripts/splitToOg.py {input.og} {input.all_faa} {input.core_og} {output.coreog_prot}
         """ 
 
 rule align_core_prot:
     input:
-        "orthosnake/{region}/Results/ortho/coreogs_prot/{og}.fasta"
+        "orthosnake/{region}/Results/coreogs_prot/{og}.fasta"
     output:
-        "orthosnake/{region}/Results/ortho/coreogs_aligned_prot/{og}.fasta"
+        "orthosnake/{region}/Results/coreogs_aligned_prot/{og}.fasta"
     shell:
         "helpers/./muscle -in {input} -out {output} -quiet"
 
 rule pal2nal:
     input:
-        prot="orthosnake/{region}/Results/ortho/coreogs_aligned_prot/{og}.fasta",
-        nuc="orthosnake/{region}/Results/ortho/coreogs_nuc/{og}.fasta"
-    output: "orthosnake/{region}/Results/ortho/coreogs_aligned_nuc/{og}.fasta"
+        prot="orthosnake/{region}/Results/coreogs_aligned_prot/{og}.fasta",
+        nuc="orthosnake/{region}/Results/coreogs_nuc/{og}.fasta"
+    output: "orthosnake/{region}/Results/coreogs_aligned_nuc/{og}.fasta"
     shell:
         "perl helpers/pal2nal.pl {input.prot} {input.nuc} -output fasta > {output}"
 
 def aggregate_core_og(wildcards):
     checkpoint_output = checkpoints.makeCoreOGfastasffn.get(**wildcards).output[0]
-    ogs = expand("orthosnake/{region}/Results/ortho/coreogs_aligned_nuc/{og}.fasta",region=wildcards.region,
+    ogs = expand("orthosnake/{region}/Results/coreogs_aligned_nuc/{og}.fasta",region=wildcards.region,
            og=glob_wildcards(os.path.join(checkpoint_output, "{og}.fasta")).og)
     return ogs
 
 rule cat_core:
     input: aggregate_core_og
     output: "orthosnake/{region}/tmp/coreogaligned.fasta" 
-    conda: "envs/scripts_tree.yaml"
+    
     params: folder="orthosnake/{region}"
     shell:
-        "perl scripts/concatenate_core.pl {params.folder}/Results/ortho/coreogs_aligned_nuc {output}" 
+        "perl scripts/concatenate_core.pl {params.folder}/Results/coreogs_aligned_nuc {output}" 
 
 rule tree_for_core:
     input: "orthosnake/{region}/tmp/coreogaligned.fasta" 
