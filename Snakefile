@@ -177,11 +177,12 @@ rule tree_for_core:
     input: "orthosnake/{region}/tmp/coreogaligned.fasta" 
     threads: 20
     ## add iqtree to conda
+    conda: "envs/env.yaml"
     output: "tree_core/{region}/{region}_core.treefile"
     shell:
         """
         prefix=$(basename {output} .treefile)
-        iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix $prefix -redo -m MFP
+        iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix $prefix -redo -m MFP -safe
         """
 
 #============================================ REGION TREE --
@@ -216,6 +217,7 @@ rule tree_for_region:
     output: "tree_region/{region}/{region}.treefile"
     params: folder="tree_region/{region}/"
     ## add iqtree to conda
+    conda: "envs/env.yaml"
     threads: 20
     shell:
-        "iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix tree_region/{wildcards.region}/{wildcards.region} -redo -m MFP"
+        "iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix tree_region/{wildcards.region}/{wildcards.region} -redo -m MFP -safe"
