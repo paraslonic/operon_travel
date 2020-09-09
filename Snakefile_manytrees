@@ -1,0 +1,16 @@
+
+
+OGS, = glob_wildcards("orthosnake/pdu/Results/coreogs_aligned_nuc/{OG}.fasta")
+
+iwant=[]
+iwant.append(expand("orthosnake/pdu/Results/coreogs_aligned_nuc_tree/{OG}.treefile", OG =  OGS))
+
+rule all:
+    input: iwant
+
+rule tree:
+    input: "orthosnake/pdu/Results/coreogs_aligned_nuc/{OG}.fasta"
+    output: "orthosnake/pdu/Results/coreogs_aligned_nuc_tree/{OG}.treefile"
+    threads: 1
+    params: prefix="orthosnake/pdu/Results/coreogs_aligned_nuc_tree/{OG}"
+    shell: "iqtree -s {input} --seqtype CODON -T AUTO --threads-max 20 --prefix {params.prefix} -safe"
