@@ -8,8 +8,9 @@ setwd("/data12/bio/runs-manolov/operon_travel/studio/sorbitol/")
 region_tree <- read.tree("sorbitol_aligned.fasta.raxml.bestTree")
 core_tree <- read.tree("coreogaligned.fasta.raxml.bestTree")
 
+plot_tree_compare <- function(firstTree, secondTree)
 firstTree <- region_tree
-
+secondTree <- core_tree
 firstTree <- midpoint(firstTree)
 secondTree <- midpoint(secondTree)
 
@@ -22,7 +23,8 @@ secondTree <- chronopl(secondTree, lambda = 0.01, tol = 1e-19, iter.max = 2000, 
 secondTree <- as.dendrogram(secondTree)
 
 dends <- dendlist(firstTree, secondTree)
-#plot(dends)
 
 x <- dends %>% untangle(method = "step2side")
+png("compare_sorbitol_full.png")
 x %>% plot(main = paste("entanglement =", round(entanglement(x), 2)), common_subtrees_color_branches = TRUE)
+dev.off()
