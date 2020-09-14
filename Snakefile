@@ -8,9 +8,10 @@ results = []
 genomes,=glob_wildcards("fna/{genome}.fna")
 #genomes = genomes[0:60]
 
-regions,=glob_wildcards("regions/{region}.fasta")
-results.append(expand("tree_region/{region}/{region}.treefile", region =  regions))
-results.append(expand("tree_core/{region}/{region}_core.treefile", region =  regions))
+#regions,=glob_wildcards("regions/{region}.fasta")
+regions,=["hemin"]
+results.append(expand("tree_region/{region}/{region}.raxml.bestTree", region =  regions))
+results.append(expand("tree_core/{region}/{region}_core.raxml.bestTree", region =  regions))
 
 print("Genomes: ", len(genomes))
 
@@ -175,14 +176,14 @@ rule cat_core:
 
 rule tree_for_core:
     input: "orthosnake/{region}/tmp/coreogaligned.fasta" 
-    threads: 20
+    threads: 30
     ## add iqtree to conda
     conda: "envs/env.yaml"
-    output: "tree_core/{region}/{region}_core.treefile"
+    output: "tree_core/{region}/{region}_core.raxml.bestTree"
     shell:
         """
-        prefix=$(basename {output} .treefile)
-        iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix $prefix -redo -m MFP -safe
+        prefix=$(basename {output} .raxml.bestTree)
+        raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix $prefix 
         """
 
 #============================================ REGION TREE --
@@ -214,10 +215,10 @@ rule og_in_region_sequence:
 
 rule tree_for_region:
     input: "tmp/og_in_region/{region}/{region}.fasta"
-    output: "tree_region/{region}/{region}.treefile"
-    params: folder="tree_region/{region}/"
+    output: "tree_region/{region}/{region}.raxml.bestTree"
+    params: prefix="tree_region/{region}/{region}"
     ## add iqtree to conda
     conda: "envs/env.yaml"
     threads: 20
     shell:
-        "iqtree -s {input} --seqtype CODON -T AUTO --threads-max {threads} --prefix tree_region/{wildcards.region}/{wildcards.region} -redo -m MFP -safe"
+        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix ${params.prefix}"
