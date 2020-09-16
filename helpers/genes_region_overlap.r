@@ -39,4 +39,3 @@ og_in_region_index <- which(unlist(og_table[, ref_col, with=F]) %in% genes_in_re
 
 og_in_region <- og_table[og_in_region_index, 1, with=F]
 write.table(og_in_region, paste0("tmp/og_in_region/",operon,"/og_list"), row.names = F, col.names = F, quote = F)
-

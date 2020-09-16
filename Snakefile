@@ -9,7 +9,7 @@ genomes,=glob_wildcards("fna/{genome}.fna")
 #genomes = genomes[0:60]
 
 #regions,=glob_wildcards("regions/{region}.fasta")
-regions,=["hemin"]
+regions,=["capsule_left"]
 results.append(expand("tree_region/{region}/{region}.raxml.bestTree", region =  regions))
 results.append(expand("tree_core/{region}/{region}_core.raxml.bestTree", region =  regions))
 
@@ -176,17 +176,17 @@ rule cat_core:
 
 rule tree_for_core:
     input: "orthosnake/{region}/tmp/coreogaligned.fasta" 
-    threads: 30
-    ## add iqtree to conda
+    threads: 50
     conda: "envs/env.yaml"
     output: "tree_core/{region}/{region}_core.raxml.bestTree"
+    params: prefix="tree_core/{region}/{region}_core"
     shell:
         """
         prefix=$(basename {output} .raxml.bestTree)
-        raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix $prefix 
+        raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix {params.prefix}  --redo
         """
 
-#============================================ REGION TREE --
+# ==================================  REGION TREE ===================================================
 
 rule og_in_region:
     input:  lambda wildcards:
@@ -219,6 +219,6 @@ rule tree_for_region:
     params: prefix="tree_region/{region}/{region}"
     ## add iqtree to conda
     conda: "envs/env.yaml"
-    threads: 20
+    threads: 50
     shell:
-        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix ${params.prefix}"
+        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix {params.prefix}"
