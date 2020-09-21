@@ -1,0 +1,31 @@
+Lists,=glob_wildcards("tree_to_compare/pdu/og_lists/{list}")
+
+rule all:
+    input: expand("tree_to_compare/pdu/trees/{list}.raxml.bestTree", list=Lists)
+
+rule og_in_region_sequence:
+    input: oglist="tree_to_compare/pdu/og_lists/{list}", ogaligned="orthosnake/pdu/tmp/coreogaligned.fasta"
+    output: "tree_to_compare/pdu/ogs/{list}/{list}.fasta"
+    conda: "envs/scripts_perl.yaml"
+    shell: 
+        """
+            mkdir -p tree_to_compare/pdu/ogs/
+            mkdir -p tree_to_compare/pdu/ogs/{wildcards.list}
+            while read f
+            do 
+                OG_FASTA="orthosnake/pdu/Results/coreogs_aligned_nuc/$f.fasta"
+                if [ -f $OG_FASTA ]; then  
+                    cp $OG_FASTA tree_to_compare/pdu/ogs/{wildcards.list}/$f.fasta
+                fi    
+            done < {input.oglist}
+            perl scripts/concatenate_core.pl tree_to_compare/pdu/ogs/{wildcards.list} {output}
+        """
+
+rule tree_for_region:
+    input: "tree_to_compare/pdu/ogs/{list}/{list}.fasta"
+    output: "tree_to_compare/pdu/trees/{list}.raxml.bestTree"
+    params: prefix="tree_to_compare/pdu/trees/{list}"
+    conda: "envs/env.yaml"
+    threads: 50
+    shell:
+        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix {params.prefix}"
