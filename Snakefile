@@ -9,7 +9,7 @@ genomes,=glob_wildcards("fna/{genome}.fna")
 #genomes = genomes[0:60]
 
 #regions,=glob_wildcards("regions/{region}.fasta")
-regions,=["capsule_left"]
+regions,=["glyoxilate_wide"]
 results.append(expand("tree_region/{region}/{region}.raxml.bestTree", region =  regions))
 results.append(expand("tree_core/{region}/{region}_core.raxml.bestTree", region =  regions))
 
