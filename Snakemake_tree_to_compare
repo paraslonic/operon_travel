@@ -1,7 +1,7 @@
 Lists,=glob_wildcards("tree_to_compare/pdu/og_lists/{list}")
 
 rule all:
-    input: expand("tree_to_compare/pdu/trees/{list}.raxml.bestTree", list=Lists)
+    input: expand("tree_to_compare/pdu/trees/{list}.raxml.support", list=Lists)
 
 rule og_in_region_sequence:
     input: oglist="tree_to_compare/pdu/og_lists/{list}", ogaligned="orthosnake/pdu/tmp/coreogaligned.fasta"
@@ -28,4 +28,13 @@ rule tree_for_region:
     conda: "envs/env.yaml"
     threads: 50
     shell:
-        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix {params.prefix}"
+        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix {params.prefix} --all"
+
+rule tree_for_region_bs:
+    input: "tree_to_compare/pdu/ogs/{list}/{list}.fasta"
+    output: "tree_to_compare/pdu/trees/{list}.raxml.bestTree", "tree_to_compare/pdu/trees/{list}.raxml.support"
+    params: prefix="tree_to_compare/pdu/trees/{list}"
+    conda: "envs/env.yaml"
+    threads: 10
+    shell:
+        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix {params.prefix} --all --redo"
