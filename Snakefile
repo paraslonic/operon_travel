@@ -6,10 +6,10 @@ import random
 results = []
 
 genomes,=glob_wildcards("fna/{genome}.fna")
-#genomes = genomes[0:60]
 
 #regions,=glob_wildcards("regions/{region}.fasta")
-regions,=["glyoxilate_wide"]
+regions=["pO157"]
+print(regions)
 results.append(expand("tree_region/{region}/{region}.raxml.bestTree", region =  regions))
 results.append(expand("tree_core/{region}/{region}_core.raxml.bestTree", region =  regions))
 
@@ -19,7 +19,7 @@ rule all:
     input: results
 
 rule blast:
-    input: region="regions/{region}.fasta",genome="fna/{genome}.fna"
+    input: region="regions/{region}.fasta", genome="fna/{genome}.fna"
     output: "blast/{region}/{genome}.blast"
     conda: "envs/env.yaml"
     shell: 

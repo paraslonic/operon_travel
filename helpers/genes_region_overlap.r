@@ -20,8 +20,8 @@ overlapped_genes_index_total <- c()
 for(i in 1:nrow(regions)){
   region <- regions[i,]
   genes_table_subset <- subset(genes_table, genes_table$contig == region$sseqid)  
-  region_ir <- IRanges(start = region$sstart, end = region$send)
-  genes_ir <- IRanges(start = genes_table_subset$start, end = genes_table_subset$end)
+  region_ir <- IRanges(start = min(region$sstart, region$send), end = max(region$sstart, region$send))
+  genes_ir <- IRanges(start = min(genes_table_subset$start, genes_table_subset$end), end = max(genes_table_subset$start, genes_table_subset$end))
   overlaps <- findOverlaps(genes_ir, region_ir, type="within")
   overlapped_genes_index <- as.data.frame(overlaps)[,1]
   overlapped_genes_index_total <- c(overlapped_genes_index_total, overlapped_genes_index)
