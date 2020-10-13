@@ -221,4 +221,4 @@ rule tree_for_region:
     conda: "envs/env.yaml"
     threads: 50
     shell:
-        "raxml-ng --msa {input} --model GTR+G+I --threads {threads} --prefix {params.prefix}"
+        "raxml-ng --msa {input} --model GTR+G+I --all --threads {threads} --prefix {params.prefix}"
